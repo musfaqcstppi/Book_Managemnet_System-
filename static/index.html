@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BookStore</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<!--
+  BookStore web UI: GIVEN CODE, you do not need to edit anything in /static.
+  The UI reads /openapi.json every few seconds and unlocks each feature
+  as soon as you build the matching endpoint in main.py.
+-->
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">B</span>
+    <span class="brand-name">BookStore</span>
+    <span id="api-status" class="pill pill-off" title="Checkpoint 0: GET /api">API offline</span>
+  </div>
+  <nav class="nav" id="nav">
+    <button data-view="shop" class="active">Shop</button>
+    <button data-view="genres">Genres</button>
+    <button data-view="add">Add book</button>
+    <button data-view="cart">Cart <span id="cart-count" class="count">0</span></button>
+    <button data-view="account">Account</button>
+    <button data-view="request">Request a book</button>
+    <button data-view="import">Import</button>
+  </nav>
+  <div class="top-actions">
+    <label class="currency" title="Sent as the X-Currency header (Checkpoint 8)">
+      <span>Currency</span>
+      <select id="currency">
+        <option value="BDT">BDT ৳</option>
+        <option value="USD">USD $</option>
+      </select>
+    </label>
+    <button id="cp-toggle" class="cp-toggle">Checkpoints <b id="cp-count">0/14</b></button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ============ SHOP ============ -->
+  <section class="view active" id="view-shop">
+    <div class="hero lockable" data-feature="welcome">
+      <div>
+        <p class="eyebrow">Welcome</p>
+        <h1 id="welcome-msg">BookStore</h1>
+        <p class="muted">Every feature in this shop is powered by an endpoint you write in <code>main.py</code>.</p>
+      </div>
+    </div>
+
+    <div class="block lockable" data-feature="recs">
+      <div class="block-head">
+        <h2>Recommended for you</h2>
+        <label class="inline">Favourite genre
+          <select id="fav-genre">
+            <option value="">No preference</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">Your choice is stored in a <code>preferred_genre</code> cookie that the browser sends with every request.</p>
+      <div id="recs" class="grid grid-small"></div>
+    </div>
+
+    <div class="block lockable" data-feature="listBooks">
+      <div class="block-head">
+        <h2>All books</h2>
+        <span id="result-count" class="muted"></span>
+      </div>
+      <div id="leak-banner" class="banner banner-warn hidden"></div>
+      <div class="toolbar">
+        <div class="field grow lockable-inline" data-cp="4">
+          <input id="search" type="search" placeholder="Search title or author (min 3 characters)" autocomplete="off">
+          <div id="search-error" class="field-error"></div>
+        </div>
+        <select id="filter-genre"><option value="">All genres</option></select>
+        <label class="check"><input type="checkbox" id="filter-stock"> In stock only</label>
+      </div>
+      <div id="tag-row" class="tags lockable-inline" data-cp="4"></div>
+      <div id="books" class="grid"></div>
+      <div class="pager">
+        <button id="prev" class="btn btn-ghost">← Previous</button>
+        <span id="page-info" class="muted"></span>
+        <button id="next" class="btn btn-ghost">Next →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GENRES ============ -->
+  <section class="view" id="view-genres">
+    <div class="block lockable" data-feature="genre">
+      <div class="block-head"><h2>Browse by genre</h2></div>
+      <div id="genre-chips" class="chips"></div>
+      <div id="genre-books" class="grid"></div>
+    </div>
+    <div class="block lockable" data-feature="readBook">
+      <div class="block-head"><h2>Open a book by ID</h2></div>
+      <form id="open-book" class="row-form">
+        <input name="book_id" type="number" placeholder="Book ID, e.g. 5" required>
+        <button class="btn">Open</button>
+      </form>
+      <div class="form-error"></div>
+    </div>
+  </section>
+
+  <!-- ============ BOOK DETAIL ============ -->
+  <section class="view" id="view-book">
+    <button class="btn btn-ghost back" data-back>← Back</button>
+    <div class="lockable" data-feature="readBook">
+      <div id="book-leak" class="banner banner-warn hidden"></div>
+      <article id="book-detail" class="detail"></article>
+    </div>
+
+    <div class="two-col">
+      <div class="block lockable" data-feature="listReviews">
+        <h2>Reviews</h2>
+        <div id="reviews" class="reviews"></div>
+        <form id="review-form" class="stack lockable-inline" data-feature-inline="addReview">
+          <h3>Write a review</h3>
+          <label>Your name<input name="user" placeholder="e.g. Sami"></label>
+          <label>Rating
+            <select name="rating">
+              <option value="5">★★★★★ 5</option><option value="4">★★★★ 4</option>
+              <option value="3">★★★ 3</option><option value="2">★★ 2</option>
+              <option value="1">★ 1</option><option value="0">0 (try it: should fail)</option>
+            </select>
+          </label>
+          <label>Comment<textarea name="comment" rows="3" placeholder="What did you think?"></textarea></label>
+          <div class="form-error"></div>
+          <button class="btn">Post review</button>
+        </form>
+      </div>
+
+      <div class="stack-col">
+        <div class="block lockable" data-feature="updateBook">
+          <h2>Edit this book</h2>
+          <form id="edit-form" class="stack">
+            <label>Title<input name="title"></label>
+            <label>Author<input name="author"></label>
+            <div class="row">
+              <label>Genre<select name="genre" class="genre-select"></select></label>
+              <label>Price (BDT)<input name="price" type="number" step="0.01"></label>
+            </div>
+            <label>Description<textarea name="description" rows="2"></textarea></label>
+            <label>Tags <span class="muted">(comma separated)</span><input name="tags"></label>
+            <label class="check"><input type="checkbox" name="in_stock"> In stock</label>
+            <label>Change note <span class="muted">(sent as a separate body value)</span><input name="change_note" placeholder="e.g. Price updated"></label>
+            <label class="check"><input type="checkbox" name="notify"> Notify subscribers <span class="muted">(query parameter)</span></label>
+            <div class="form-error"></div>
+            <button class="btn">Save changes</button>
+          </form>
+        </div>
+
+        <div class="block lockable" data-feature="uploadCover">
+          <h2>Upload a cover</h2>
+          <form id="cover-form" class="row-form">
+            <input type="file" name="file" accept="image/*">
+            <button class="btn">Upload</button>
+          </form>
+          <div class="form-error"></div>
+        </div>
+
+        <div class="block lockable" data-feature="deleteBook">
+          <h2>Danger zone</h2>
+          <button id="delete-book" class="btn btn-danger">Delete this book</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ADD BOOK ============ -->
+  <section class="view" id="view-add">
+    <div class="block lockable narrow" data-feature="createBook">
+      <h2>Add a new book</h2>
+      <form id="add-form" class="stack">
+        <label>Title<input name="title" placeholder="e.g. Think Python"></label>
+        <label>Author<input name="author" placeholder="e.g. Allen B. Downey"></label>
+        <div class="row">
+          <label>Genre<select name="genre" class="genre-select"></select></label>
+          <label>Price (BDT)<input name="price" type="number" step="0.01" placeholder="e.g. 950"></label>
+        </div>
+        <label>Description<textarea name="description" rows="3"></textarea></label>
+        <label>Tags <span class="muted">(comma separated: try a duplicate)</span><input name="tags" placeholder="python, beginner, python"></label>
+        <label class="check"><input type="checkbox" name="in_stock" checked> In stock</label>
+        <div class="cover-option lockable-inline" data-feature-inline="withCover">
+          <label class="check"><input type="checkbox" name="with_cover"> Attach a cover image (sends a multipart form)</label>
+          <input type="file" name="cover" accept="image/*" class="hidden">
+        </div>
+        <div class="form-error"></div>
+        <button class="btn">Add book</button>
+      </form>
+      <div id="add-result"></div>
+    </div>
+  </section>
+
+  <!-- ============ CART ============ -->
+  <section class="view" id="view-cart">
+    <div class="two-col">
+      <div class="block">
+        <h2>Your cart</h2>
+        <div id="cart-items"></div>
+        <p class="hint">Orders are always charged in BDT.</p>
+      </div>
+      <div class="block lockable" data-feature="createOrder">
+        <h2>Checkout</h2>
+        <form id="checkout-form" class="stack">
+          <label>Full name<input name="name" placeholder="e.g. Rina Akter"></label>
+          <label>Email<input name="email" placeholder="rina@example.com"></label>
+          <label>Phone <span class="muted">(optional)</span><input name="phone"></label>
+          <label>Coupon codes <span class="muted">(comma separated: SAVE10, STUDENT15)</span><input name="coupons"></label>
+          <label>Deliver by <span class="muted">(optional date)</span><input name="deliver_by" type="date"></label>
+          <div class="form-error"></div>
+          <button class="btn">Place order</button>
+        </form>
+        <div id="receipt"></div>
+      </div>
+    </div>
+    <div class="block lockable narrow" data-feature="readOrder">
+      <h2>Track an order</h2>
+      <form id="track-form" class="row-form">
+        <input name="order_id" placeholder="Paste an order ID (a UUID)">
+        <button class="btn">Track</button>
+      </form>
+      <div class="form-error"></div>
+      <div id="track-result"></div>
+    </div>
+  </section>
+
+  <!-- ============ ACCOUNT ============ -->
+  <section class="view" id="view-account">
+    <div class="two-col">
+      <div class="block lockable" data-feature="register">
+        <h2>Create an account</h2>
+        <form id="register-form" class="stack">
+          <label>Username <span class="muted">(lowercase, digits, _)</span><input name="username" placeholder="sami_99"></label>
+          <label>Email<input name="email" placeholder="sami@example.com"></label>
+          <label>Full name<input name="full_name"></label>
+          <label>Password <span class="muted">(min 8 characters)</span><input name="password" type="password"></label>
+          <div class="form-error"></div>
+          <button class="btn">Sign up</button>
+        </form>
+        <div id="register-result"></div>
+      </div>
+      <div class="block lockable" data-feature="login">
+        <h2>Log in</h2>
+        <p class="hint">Sent as an HTML form, not JSON. Demo user: <code>rina</code> / <code>bookworm123</code></p>
+        <form id="login-form" class="stack">
+          <label>Username<input name="username"></label>
+          <label>Password<input name="password" type="password"></label>
+          <div class="form-error"></div>
+          <button class="btn">Log in</button>
+        </form>
+        <div id="login-result"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REQUEST A BOOK ============ -->
+  <section class="view" id="view-request">
+    <div class="block lockable narrow" data-feature="bookRequest">
+      <h2>Can’t find a book? Request it</h2>
+      <form id="request-form" class="stack">
+        <label>Book title<input name="title"></label>
+        <label>Author <span class="muted">(optional)</span><input name="author"></label>
+        <label>Your email<input name="email"></label>
+        <label>Note <span class="muted">(optional)</span><textarea name="note" rows="3"></textarea></label>
+        <div class="form-error"></div>
+        <button class="btn">Send request</button>
+      </form>
+      <div id="request-result"></div>
+    </div>
+  </section>
+
+  <!-- ============ IMPORT ============ -->
+  <section class="view" id="view-import">
+    <div class="block lockable narrow" data-feature="importCsv">
+      <h2>Import books from CSV</h2>
+      <p class="hint">Columns: <code>title,author,genre,price,tags</code> (tags separated by <code>;</code>).
+        <a href="/static/sample_books.csv" download>Download a sample CSV</a></p>
+      <form id="import-form" class="row-form">
+        <input type="file" name="file" accept=".csv,text/csv">
+        <button class="btn">Import</button>
+      </form>
+      <div class="form-error"></div>
+      <div id="import-result"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ CHECKPOINT PANEL ============ -->
+<aside id="cp-panel" class="drawer" aria-label="Checkpoints">
+  <div class="drawer-head">
+    <h2>Checkpoints</h2>
+    <button class="btn btn-ghost" id="cp-close">Close</button>
+  </div>
+  <p class="hint">Detected live from <code>/openapi.json</code>. Save <code>main.py</code> and watch them turn green.</p>
+  <ol id="cp-list" class="cp-list"></ol>
+</aside>
+
+<!-- ============ REQUEST LOG ============ -->
+<footer id="log" class="log">
+  <div class="log-bar">
+    <button id="log-toggle" class="log-toggle">Request log <span id="log-last" class="muted"></span></button>
+    <span id="client-info" class="muted client-info"></span>
+  </div>
+  <div class="log-body">
+    <div class="log-list" id="log-list"></div>
+    <pre class="log-detail" id="log-detail">Click a request to see what was sent and received.</pre>
+  </div>
+</footer>
+
+<div id="toast" class="toast" role="status"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
